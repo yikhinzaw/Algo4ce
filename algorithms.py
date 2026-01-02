@@ -51,6 +51,66 @@ def bfs_search(env, start, goal, mode='graph'):
 
 
 
+def dfs_search(env, start, goal, mode='graph', depth_limit=None):
+    # Frontier as a stack for DFS (LIFO)
+    # depth_limit: optional int to limit path depth (None => unlimited)
+    frontier = [(start, [])]
+
+    # Explored set for Graph Search
+    explored = set()
+    if mode == 'graph':
+        explored.add(start)
+
+    nodes_expanded = 0
+    all_edges = []
+    edge_counts = {}  # Tracks how many times an edge is traversed
+
+    while frontier:
+        current_node, path = frontier.pop()  # Pop (LIFO)
+
+        # Goal Test
+        if current_node == goal:
+            return path + [current_node], len(path), nodes_expanded, all_edges, edge_counts
+
+        nodes_expanded += 1
+
+        for neighbor, step_cost in env.get_neighbors(current_node):
+            # Graph Search: Check if visited
+            if mode == 'graph':
+                if neighbor in explored:
+                    continue
+                explored.add(neighbor)
+
+            # Tree Search: Prevent cycles by skipping neighbors already in the current path
+            if mode == 'tree':
+                current_path_nodes = set(path + [current_node])
+                if neighbor in current_path_nodes:
+                    continue
+
+            # Depth limit: skip neighbors that would exceed the limit
+            if depth_limit is not None:
+                new_depth = len(path) + 1
+                if new_depth > depth_limit:
+                    continue
+
+            edge = tuple(sorted((current_node, neighbor)))
+            edge_counts[edge] = edge_counts.get(edge, 0) + 1
+            all_edges.append((current_node, neighbor))
+
+            frontier.append((neighbor, path + [current_node]))
+
+            # Yield progress for real-time visualization
+            yield {
+                "explored": list(explored) if mode == 'graph' else [],
+                "edges": all_edges,
+                "edge_counts": edge_counts,
+                "nodes": nodes_expanded
+            }
+
+    return None, float('inf'), nodes_expanded, all_edges, edge_counts
+
+
+
 def uniform_cost_search(env, start, goal, mode='graph'):
     # frontier: (cumulative_cost, current_node, path_history)
     frontier = [(0, start, [])]

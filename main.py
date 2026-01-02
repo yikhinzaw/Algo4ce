@@ -4,7 +4,7 @@ import time
 import random
 import os
 from environment import GridEnvironment
-from algorithms import uniform_cost_search, bfs_search
+from algorithms import uniform_cost_search, bfs_search, dfs_search
 from astar_search import astar_search
 
 # --- CONFIGURATION ---
@@ -119,7 +119,7 @@ def draw_all(screen, env, agent, books, shelf, nodes, mode, cell_size, sh, sw, s
     screen.blit(font.render(f"Books Left: {len(books)}", True, (0, 0, 0)), (20, sh - 30))
 
 
-def run_simulation(mode, algorithm_name, search_func):
+def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
     grid_size = 12 if mode == 'graph' else 7
     cell_size = 50 if mode == 'graph' else 80
     sw, sh = grid_size * cell_size, (grid_size * cell_size) + HUD_H
@@ -152,7 +152,7 @@ def run_simulation(mode, algorithm_name, search_func):
         env = GridEnvironment(grid_size, grid_size, static_walls, None, g=0, h=0)        
         env.obstacles = dynamic_obs
         
-        search_gen = search_func(env, agent_pos, target, mode=mode)
+        search_gen = search_func(env, agent_pos, target, mode=mode, **(search_kwargs or {}))
         path, edge_counts = None, {}
         current_cost = 0
 
@@ -211,13 +211,15 @@ def main():
     print("1. BFS (Breadth-First Search)")
     print("2. UCS (Uniform Cost Search)")
     print("3. A* (A-Star Search)")
+    print("4. DFS (Depth-First Search)")
     
-    choice = input("Select Algorithm (1-3): ").strip()
+    choice = input("Select Algorithm (1-4): ").strip()
     
     algo_map = {
         '1': ('BFS', bfs_search),
         '2': ('UCS', uniform_cost_search),
-        '3': ('A*', astar_search)
+        '3': ('A*', astar_search),
+        '4': ('DFS', dfs_search)
     }
     
     selected = algo_map.get(choice, ('BFS', bfs_search))
@@ -225,7 +227,10 @@ def main():
     
     # Run user requested sequence: Graph then Tree
     run_simulation('graph', selected[0], selected[1])
-    run_simulation('tree', selected[0], selected[1])
+
+    # For tree mode, pass a depth_limit for DFS to ensure termination on small grids
+    tree_search_kwargs = {'depth_limit': 20} if selected[0] == 'DFS' else None
+    run_simulation('tree', selected[0], selected[1], search_kwargs=tree_search_kwargs)
     
     pygame.quit()
 
