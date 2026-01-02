@@ -185,6 +185,7 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
 
         if path:
             total_cost += current_cost
+            print(f"{path}")
             for step in path[1:]:
                 agent_pos = step
                 elapsed = time.time() - start_time
@@ -201,10 +202,10 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
     final_time = end_time - start_time
       ##calculate storage size 
     current, peak = tracemalloc.get_traced_memory()
-    print(f"Current memory usage is {current }; Peak was {peak / 10**3}KB")
+    print(f"Current memory usage is {current / 10**6}MB; Peak was {peak / 10**6}MB")
     tracemalloc.stop()
     
-    print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}. Path:{path}")
+    print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}.")
    
     
     # Pause to show result
@@ -213,29 +214,30 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
 
 def main():
     pygame.init()
-    tracemalloc.start()
     print("--- Library Robot Algorithm Selection ---")
     print("1. BFS (Breadth-First Search)")
-    print("2. UCS (Uniform Cost Search)")
+    print("2. DFS (Depth-First Search)")
     print("3. A* (A-Star Search)")
-    print("4. DFS (Depth-First Search)")
+    print("4. UCS (Uniform Cost Search)")
     
     choice = input("Select Algorithm (1-4): ").strip()
     
     algo_map = {
         '1': ('BFS', bfs_search),
-        '2': ('UCS', uniform_cost_search),
+        '2': ('DFS', dfs_search),
         '3': ('A*', astar_search),
-        '4': ('DFS', dfs_search)
+        '4': ('UCS', uniform_cost_search)
     }
     
     selected = algo_map.get(choice, ('BFS', bfs_search))
     print(f"Selected: {selected[0]}")
     
     # Run user requested sequence: Graph then Tree
+    tracemalloc.start()
     run_simulation('graph', selected[0], selected[1])
 
     # For tree mode, pass a depth_limit for DFS to ensure termination on small grids
+    tracemalloc.start()
     tree_search_kwargs = {'depth_limit': 20} if selected[0] == 'DFS' else None
     run_simulation('tree', selected[0], selected[1], search_kwargs=tree_search_kwargs)
     
