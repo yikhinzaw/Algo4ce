@@ -204,7 +204,7 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
     print(f"Current memory usage is {current }; Peak was {peak / 10**3}KB")
     tracemalloc.stop()
     
-    print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}")
+    print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}. Path:{path}")
    
     
     # Pause to show result
