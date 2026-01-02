@@ -3,6 +3,7 @@ import sys
 import time
 import random
 import os
+import tracemalloc
 from environment import GridEnvironment
 from algorithms import uniform_cost_search, bfs_search, dfs_search
 from astar_search import astar_search
@@ -198,7 +199,13 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
     # Final Stats
     end_time = time.time()
     final_time = end_time - start_time
+      ##calculate storage size 
+    current, peak = tracemalloc.get_traced_memory()
+    print(f"Current memory usage is {current }; Peak was {peak / 10**3}KB")
+    tracemalloc.stop()
+    
     print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}")
+   
     
     # Pause to show result
     time.sleep(2)
@@ -206,7 +213,7 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
 
 def main():
     pygame.init()
-    
+    tracemalloc.start()
     print("--- Library Robot Algorithm Selection ---")
     print("1. BFS (Breadth-First Search)")
     print("2. UCS (Uniform Cost Search)")
