@@ -1,4 +1,54 @@
 import heapq
+from collections import deque
+
+def bfs_search(env, start, goal, mode='graph'):
+    # Frontier as a deque for BFS (FIFO)
+    frontier = deque([(start, [])])
+    
+    # Explored set for Graph Search
+    explored = set()
+    if mode == 'graph':
+        explored.add(start)
+        
+    nodes_expanded = 0
+    all_edges = []
+    edge_counts = {}  # Tracks how many times an edge is traversed
+
+    while frontier:
+        current_node, path = frontier.popleft() # Dequeue (FIFO)
+
+        # Goal Test
+        if current_node == goal:
+            return path + [current_node], len(path), nodes_expanded, all_edges, edge_counts
+
+        nodes_expanded += 1
+
+        for neighbor, step_cost in env.get_neighbors(current_node):
+            # Graph Search: Check if visited
+            if mode == 'graph':
+                if neighbor in explored:
+                    continue
+                explored.add(neighbor)
+            
+            # Tree Search: No explored check (but in practice we might want to avoid immediate loops, 
+            # adhering to user request for standard BFS tree behavior)
+            
+            edge = tuple(sorted((current_node, neighbor)))
+            edge_counts[edge] = edge_counts.get(edge, 0) + 1
+            all_edges.append((current_node, neighbor))
+
+            frontier.append((neighbor, path + [current_node]))
+
+            # Yield progress for real-time visualization
+            yield {
+                "explored": list(explored) if mode == 'graph' else [],
+                "edges": all_edges,
+                "edge_counts": edge_counts,
+                "nodes": nodes_expanded
+            }
+
+    return None, float('inf'), nodes_expanded, all_edges, edge_counts
+
 
 
 def uniform_cost_search(env, start, goal, mode='graph'):

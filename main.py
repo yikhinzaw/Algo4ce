@@ -4,7 +4,7 @@ import time
 import random
 import os
 from environment import GridEnvironment
-from algorithms import uniform_cost_search
+from algorithms import uniform_cost_search, bfs_search
 from astar_search import astar_search
 
 # --- CONFIGURATION ---
@@ -28,22 +28,54 @@ def load_and_scale(path, size):
     return None
 
 
-def generate_random_world(grid_size, num_obstacles, num_books):
+def generate_fixed_world(grid_size):
+    # Fixed Layout from User's original code
     obs = set()
-    while len(obs) < num_obstacles:
-        candidate = (random.randint(0, grid_size - 1), random.randint(0, grid_size - 1))
-        if candidate != (0, 0): obs.add(candidate)
+    books = []
+    shelf = (grid_size-1, grid_size-1)
 
-    all_spots = [(x, y) for x in range(grid_size) for y in range(grid_size)
-                 if (x, y) not in obs and (x, y) != (0, 0)]
-    random.shuffle(all_spots)
-    books = all_spots[:num_books]
-    shelf = all_spots[num_books]
+    if grid_size == 12: # GRAPH SEARCH
+        # 1. Obstacles
+        obs = {
+            (2, 2), (2, 3), (2, 4), (2, 5), # Wall 1
+            (8, 8), (8, 9), (9, 8),         # Block 2
+            (5, 5), (5, 6), (6, 5)          # Center Cluster
+        }
+        
+        # 2. Books
+        books = [
+            (1, 10),  # Bottom Left
+            (10, 1),  # Top Right
+            (10, 10)  # Bottom Right
+        ]
+        shelf = (1, 1) # Top Left Goal
+
+    else: # TREE SEARCH (7x7)
+        # 1. Obstacles
+        obs = {
+            (1, 1), (1, 2), # Vertical
+            (4, 4), (5, 4), # Horizontal
+            (3, 2)
+        }
+
+        # 2. Books
+        # UPDATED POSITION based on previous task: Book 2 at (0, 5)
+        books = [
+            (0, 6), # Book 1: Bottom Left
+            (0, 5), # Book 2: Near Book 1 (Speed up)
+            (3, 6)  # Book 3: Bottom Middle
+        ]
+        shelf = (6, 6) # Shelf: Bottom Right
+
+    # Filter bounds
+    obs = {pos for pos in obs if pos[0] < grid_size and pos[1] < grid_size}
+    books = [b for b in books if b[0] < grid_size and b[1] < grid_size and b not in obs]
+    
     return obs, books, shelf
 
 
 def draw_all(screen, env, agent, books, shelf, nodes, mode, cell_size, sh, sw, static_walls, icons, explored=None,
-             edges=None, edge_counts=None):
+             edges=None, edge_counts=None, elapsed_time=0, cost=0):
     screen.fill(BG)
 
     # 1. Draw Explored Background (Graph Mode Only)
@@ -51,11 +83,10 @@ def draw_all(screen, env, agent, books, shelf, nodes, mode, cell_size, sh, sw, s
         for n in explored:
             pygame.draw.rect(screen, EXPLORED_C, (n[0] * cell_size, n[1] * cell_size, cell_size, cell_size))
 
-    # 2. Draw Search Tree with Thickness for Redundancy
+    # 2. Draw Search Tree
     if edges and edge_counts:
         for s_node, e_node in edges:
             edge_key = tuple(sorted((s_node, e_node)))
-            # Thicker lines for revisited squares
             thickness = min(8, edge_counts.get(edge_key, 1))
 
             s_pos = (s_node[0] * cell_size + cell_size // 2, s_node[1] * cell_size + cell_size // 2)
@@ -69,7 +100,7 @@ def draw_all(screen, env, agent, books, shelf, nodes, mode, cell_size, sh, sw, s
             if (x, y) in static_walls:
                 pygame.draw.rect(screen, OBS, (x * cell_size, y * cell_size, cell_size, cell_size))
 
-    # 4. Draw Icons (Shelf, Books, then Robot)
+    # 4. Draw Icons
     if icons.get('shelf'):
         screen.blit(icons['shelf'], (shelf[0] * cell_size, shelf[1] * cell_size))
 
@@ -83,79 +114,119 @@ def draw_all(screen, env, agent, books, shelf, nodes, mode, cell_size, sh, sw, s
     # 5. HUD
     pygame.draw.rect(screen, (220, 220, 220), (0, sh - HUD_H, sw, HUD_H))
     font = pygame.font.SysFont("Arial", 16, bold=True)
-    screen.blit(font.render(f"MODE: {mode.upper()} | Nodes: {nodes} | Books Left: {len(books)}", True, (0, 0, 0)),
-                (20, sh - 45))
+    status_text = f"MODE: {mode.upper()} | Nodes: {nodes} | Time: {elapsed_time:.2f}s | Cost: {cost}"
+    screen.blit(font.render(status_text, True, (0, 0, 0)), (20, sh - 55))
+    screen.blit(font.render(f"Books Left: {len(books)}", True, (0, 0, 0)), (20, sh - 30))
 
 
-def run_simulation(mode):
+def run_simulation(mode, algorithm_name, search_func):
     grid_size = 12 if mode == 'graph' else 7
     cell_size = 50 if mode == 'graph' else 80
     sw, sh = grid_size * cell_size, (grid_size * cell_size) + HUD_H
     screen = pygame.display.set_mode((sw, sh))
-    pygame.display.set_caption(f"Library Robot - {mode.upper()}")
+    pygame.display.set_caption(f"Library Robot - {mode.upper()} - {algorithm_name}")
 
     icons = {'robot': load_and_scale("robot.png", cell_size),
              'book': load_and_scale("book.png", cell_size),
              'shelf': load_and_scale("shelf.png", cell_size)}
 
-    num_obs = int((grid_size * grid_size) * 0.18)
-    static_walls, current_books, shelf = generate_random_world(grid_size, num_obs, 3)
+    # Use Fixed World Generation
+    static_walls, current_books, shelf = generate_fixed_world(grid_size)
     
     agent_pos = (0, 0)
     total_nodes = 0
+    total_cost = 0
+
+    # Timer Start
+    start_time = time.time()
 
     # Mission: All books first, THEN the shelf
     mission_targets = list(current_books) + [shelf]
 
     for target in mission_targets:
-        # DYNAMIC OBSTACLE LOGIC:
-        # Treat every target (shelf/other books) as a wall UNLESS it's the current goal
         dynamic_obs = set(static_walls)
         for t in mission_targets:
             if t != target:
                 dynamic_obs.add(t)
-        env = GridEnvironment(grid_size, grid_size, static_walls,None,g=0,h=0)        
+        
+        env = GridEnvironment(grid_size, grid_size, static_walls, None, g=0, h=0)        
         env.obstacles = dynamic_obs
-        #search_gen = uniform_cost_search(env, agent_pos, target, mode=mode)
-        search_gen = astar_search(env, agent_pos, target, mode=mode)
+        
+        search_gen = search_func(env, agent_pos, target, mode=mode)
         path, edge_counts = None, {}
+        current_cost = 0
 
         searching = True
         while searching:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT: pygame.quit(); sys.exit()
+            
             try:
                 data = next(search_gen)
                 edge_counts = data["edge_counts"]
+                
+                # Calculate metrics for display
+                elapsed = time.time() - start_time
+                
                 draw_all(screen, env, agent_pos, current_books, shelf,
                          total_nodes + data["nodes"], mode, cell_size, sh, sw,
-                         static_walls, icons, data["explored"], data["edges"], edge_counts)
+                         static_walls, icons, data["explored"], data["edges"], edge_counts, elapsed, total_cost)
                 pygame.display.flip()
                 pygame.time.delay(SEARCH_DELAY)
+            
             except StopIteration as e:
+                # Search finished for this target
                 if e.value and e.value[0]:
-                    path, _, nodes_count, _, edge_counts = e.value
+                    path, path_cost, nodes_count, _, edge_counts = e.value
                     total_nodes += nodes_count
+                    current_cost = path_cost
                 searching = False
 
         if path:
+            total_cost += current_cost
             for step in path[1:]:
                 agent_pos = step
+                elapsed = time.time() - start_time
                 draw_all(screen, env, agent_pos, current_books, shelf, total_nodes, mode, cell_size, sh, sw,
-                         static_walls, icons)
+                         static_walls, icons, None, None, None, elapsed, total_cost)
                 pygame.display.flip()
                 pygame.time.delay(MOVE_DELAY)
 
             if agent_pos in current_books:
                 current_books.remove(agent_pos)
 
-    time.sleep(1)
+    # Final Stats
+    end_time = time.time()
+    final_time = end_time - start_time
+    print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}")
+    
+    # Pause to show result
+    time.sleep(2)
 
 
 def main():
     pygame.init()
-    run_simulation('graph')
-    run_simulation('tree')
+    
+    print("--- Library Robot Algorithm Selection ---")
+    print("1. BFS (Breadth-First Search)")
+    print("2. UCS (Uniform Cost Search)")
+    print("3. A* (A-Star Search)")
+    
+    choice = input("Select Algorithm (1-3): ").strip()
+    
+    algo_map = {
+        '1': ('BFS', bfs_search),
+        '2': ('UCS', uniform_cost_search),
+        '3': ('A*', astar_search)
+    }
+    
+    selected = algo_map.get(choice, ('BFS', bfs_search))
+    print(f"Selected: {selected[0]}")
+    
+    # Run user requested sequence: Graph then Tree
+    run_simulation('graph', selected[0], selected[1])
+    run_simulation('tree', selected[0], selected[1])
+    
     pygame.quit()
 
 
