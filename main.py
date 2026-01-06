@@ -5,8 +5,8 @@ import random
 import os
 import tracemalloc
 from environment import GridEnvironment
-from algorithms import uniform_cost_search, bfs_search, dfs_search
-from astar_search import astar_search
+from algorithms import uniform_cost_search, bfs_search, dfs_search,astar_search
+
 
 # --- CONFIGURATION ---
 SEARCH_DELAY = 30
