@@ -154,6 +154,7 @@ def uniform_cost_search(env, start, goal, mode='graph'):
             }
 
     return None, float('inf'), nodes_expanded, all_edges, edge_counts
+
 def astar_search(env, start, goal, mode='graph'):
     """
     start, goal: (row, col)
@@ -165,14 +166,8 @@ def astar_search(env, start, goal, mode='graph'):
         w = 1
         d = w * math.hypot(a[0] - b[0], a[1] - b[1])
         return d
-
-    @staticmethod
-    ## calculate heuristic value by using Pythagorean Theorem - Manhattan Heuristic
-    def heuristic(a, b):
-        # Manhattan distance heuristic node,goal
-        return math.fabs(a[0] - b[0]) + math.fabs(a[1] - b[1])   
     
-        # generate final path
+    # generate final path
     def calc_final_path(self, goal_node, closed_set):
         # generate final path
         rx, ry = [self.calc_grid_position(goal_node.x, self.min_x)], [
