@@ -28,7 +28,7 @@ def load_and_scale(path, size):
             return None
     return None
 
-
+         
 def generate_fixed_world(grid_size):
     # Fixed Layout from User's original code
     obs = set()
@@ -206,8 +206,7 @@ def run_simulation(mode, algorithm_name, search_func, search_kwargs=None):
     tracemalloc.stop()
     
     print(f"[{mode.upper()}] Finished in {final_time:.4f} seconds. Total Cost: {total_cost}.")
-   
-    
+
     # Pause to show result
     time.sleep(2)
 
@@ -233,7 +232,7 @@ def main():
     print(f"Selected: {selected[0]}")
     
     # Run user requested sequence: Graph then Tree
-    tracemalloc.start()
+    tracemalloc.start() 
     run_simulation('graph', selected[0], selected[1])
 
     # For tree mode, pass a depth_limit for DFS to ensure termination on small grids
